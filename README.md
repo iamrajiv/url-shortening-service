@@ -67,27 +67,81 @@ The above command will start the Go server and Redis server in the background.
 
 We can interact with the API using the following endpoints:
 
-- List all short URLs
+#### List all short URLs
+
+Request:
+
+```shell
+curl --location 'http://localhost:3000/api/v1/all'
+```
+
+Response:
+
+```json
+[
+  {
+    "url": "https://drive.google.com/drive/my-drive",
+    "short": "localhost:3000/7581f8",
+    "expiry": 23
+  }
+]
+```
+
+#### Create a short URL
+
+Request:
+
+```shell
+curl --location 'http://localhost:3000/api/v1/create' \
+--header 'Content-Type: application/json' \
+--data '{
+    "url": "https://drive.google.com/drive/my-drive"
+}'
+```
+
+Response:
+
+```json
+{
+  "url": "https://drive.google.com/drive/my-drive",
+  "short": "localhost:3000/7581f8",
+  "expiry": 24,
+  "rate_limit": 19,
+  "rate_limit_reset": 30
+}
+```
+
+#### Delete a short URL
+
+Request:
+
+```shell
+curl --location 'http://localhost:3000/api/v1/delete' \
+--header 'Content-Type: application/json' \
+--data '{
+    "short": "localhost:3000/7581f8"
+}'
+```
+
+Response:
+
+```json
+{
+  "message": "Short URL 'localhost:3000/7581f8' successfully deleted"
+}
+```
+
+#### Update a short URL
+
+Request:
 
 ```shell
 
 ```
 
-- Create a short URL
+Response:
 
-```shell
-
-```
-
-- Delete a short URL
-
-```shell
-
-```
-
-- Update a short URL
-
-```shell
+```json
 
 ```
 
