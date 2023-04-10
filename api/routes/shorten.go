@@ -39,8 +39,7 @@ type requestDeleteShortURL struct {
 }
 
 type responseUpdateShortURL struct {
-	OldURL          string        `json:"old_url"`
-	UpdatedURL      string        `json:"updated_url"`
+	URL             string        `json:"url"`
 	OldShort        string        `json:"old_short"`
 	UpdatedShort    string        `json:"updated_short"`
 	Expiry          time.Duration `json:"expiry"`
@@ -49,13 +48,12 @@ type responseUpdateShortURL struct {
 }
 
 type requestUpdateShortURL struct {
-	Short  string        `json:"short"`
-	URL    string        `json:"url"`
-	Expiry time.Duration `json:"expiry"`
+	Short        string        `json:"short"`
+	UpdatedShort string        `json:"update_short"`
+	Expiry       time.Duration `json:"expiry"`
 }
 
-// ListURLs lists all shortened urls in the database with their expiry time and original url
-
+// ListAllShortURLs lists all the short urls in the database
 func ListAllShortURLs(c *fiber.Ctx) error {
 	r := database.CreateClient(0)
 	defer r.Close()
@@ -78,6 +76,7 @@ func ListAllShortURLs(c *fiber.Ctx) error {
 	return c.Status(fiber.StatusOK).JSON(resp)
 }
 
+// ShortenURL shortens the url
 func ShortenURL(c *fiber.Ctx) error {
 	// check for the incoming request body
 	body := new(requestShortenURL)
@@ -121,7 +120,7 @@ func ShortenURL(c *fiber.Ctx) error {
 	// leading to a inifite loop, so don't accept the domain for shortening
 	if !helpers.RemoveDomainError(body.URL) {
 		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
-			"error": "haha... nice try",
+			"error": "Cannot shorten the domain",
 		})
 	}
 
@@ -178,6 +177,7 @@ func ShortenURL(c *fiber.Ctx) error {
 	return c.Status(fiber.StatusOK).JSON(resp)
 }
 
+// DeleteShortURL deletes the short url
 func DeleteShortURL(c *fiber.Ctx) error {
 	// check for the incoming request body
 	body := new(requestDeleteShortURL)
@@ -238,7 +238,7 @@ func DeleteShortURL(c *fiber.Ctx) error {
 	})
 }
 
-// Function to update the short url after update return
+// UpdateShortURL updates the short url
 func UpdateShortURL(c *fiber.Ctx) error {
 	// check for the incoming request body
 	body := new(requestUpdateShortURL)
@@ -247,17 +247,6 @@ func UpdateShortURL(c *fiber.Ctx) error {
 			"error": "cannot parse JSON",
 		})
 	}
-
-	// check if the input is an actual URL
-	if !govalidator.IsURL(body.URL) {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": "Invalid URL",
-		})
-	}
-
-	// enforce https
-	// all url will be converted to https before storing in database
-	body.URL = helpers.EnforceHTTP(body.URL)
 
 	// check if the custom short URL exists in the database
 	r := database.CreateClient(0)
@@ -269,11 +258,11 @@ func UpdateShortURL(c *fiber.Ctx) error {
 		})
 	}
 
+	orginalURL, _ := r.Get(database.Ctx, body.Short).Result()
+
 	var foundKey string
 	for _, key := range keys {
-		val := os.Getenv("DOMAIN") + "/" + key
-		val = helpers.EnforceHTTP(val)
-		if val == body.Short {
+		if key == body.Short {
 			foundKey = key
 			break
 		}
@@ -285,24 +274,39 @@ func UpdateShortURL(c *fiber.Ctx) error {
 		})
 	}
 
-	// update the URL associated with the custom short URL in the database
-	err = r.Set(database.Ctx, foundKey, body.URL, body.Expiry*3600*time.Second).Err()
+	// before setting the new short URL, check if the new short URL is already in use
+	valInUse, _ := r.Get(database.Ctx, body.UpdatedShort).Result()
+	if valInUse != "" {
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+			"error": "URL short already in use",
+		})
+	}
+
+	err = r.Rename(database.Ctx, body.Short, body.UpdatedShort).Err()
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"error": "Unable to connect to server",
 		})
 	}
 
-	// respond with the updated URL and custom short URL, and the time remaining until the rate limit resets
+	err = r.Expire(database.Ctx, body.UpdatedShort, time.Duration(body.Expiry)*time.Hour).Err()
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Unable to connect to server",
+		})
+	}
+
+	// respond with the updated short URL, expiry in hours, calls remaining and time to reset
 	resp := responseUpdateShortURL{
-		OldURL:          "",
-		UpdatedURL:      body.URL,
-		OldShort:        "",
-		UpdatedShort:    body.Short,
+		URL:             orginalURL,
+		OldShort:        os.Getenv("DOMAIN") + "/" + body.Short,
+		UpdatedShort:    os.Getenv("DOMAIN") + "/" + body.UpdatedShort,
 		Expiry:          body.Expiry,
 		XRateRemaining:  10,
 		XRateLimitReset: 30,
 	}
+
+	// implement rate limiting
 	r2 := database.CreateClient(1)
 	defer r2.Close()
 	r2.Decr(database.Ctx, c.IP())
@@ -310,9 +314,6 @@ func UpdateShortURL(c *fiber.Ctx) error {
 	resp.XRateRemaining, _ = strconv.Atoi(val)
 	ttl, _ := r2.TTL(database.Ctx, c.IP()).Result()
 	resp.XRateLimitReset = ttl / time.Nanosecond / time.Minute
-
-	resp.OldURL, _ = r.Get(database.Ctx, foundKey).Result()
-	resp.OldShort = os.Getenv("DOMAIN") + "/" + foundKey
 
 	return c.Status(fiber.StatusOK).JSON(resp)
 }
