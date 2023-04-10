@@ -21,9 +21,9 @@ The operations it supports are:
 - Delete a short URL (POST /api/v1/delete)
 - Update a short URL (POST /api/v1/update)
 
-<center>
+<div align="center">
 <img src="assets/url-shortening-service-2.svg" height="auto" width="auto" />
-</center>
+</div>
 
 Users will interact with the Go server, which will interact with the Redis server. Redis server is used as a cache server to store the short URLs.
 
