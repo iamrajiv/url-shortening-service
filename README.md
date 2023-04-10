@@ -12,7 +12,7 @@ URL shortening service that allows users to shorten long URLs in to short URLs
 
 ## About
 
-This is a RESTful API for a URL shortening service that allows users to shorten long URLs in to short URLs. The API supports CRUD operations for short URLs.
+This is a RESTful API that enables users to shorten long URLs into shorter ones through a URL shortening service. The API facilitates CRUD operations for managing short URLs.
 
 The operations it supports are:
 
