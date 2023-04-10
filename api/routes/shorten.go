@@ -129,11 +129,11 @@ func ShortenURL(c *fiber.Ctx) error {
 	// Allow API_QUOTA requests per IP address every 30 minutes
 	r2 := database.CreateClient(1)
 	defer r2.Close()
-	val, err := r2.Get(database.Ctx, c.IP()).Result()
+	_, err := r2.Get(database.Ctx, c.IP()).Result()
 	if err == redis.Nil {
 		_ = r2.Set(database.Ctx, c.IP(), os.Getenv("API_QUOTA"), 30*60*time.Second).Err()
 	} else {
-		val, _ = r2.Get(database.Ctx, c.IP()).Result()
+		val, _ := r2.Get(database.Ctx, c.IP()).Result()
 		valInt, _ := strconv.Atoi(val)
 		if valInt <= 0 {
 			limit, _ := r2.TTL(database.Ctx, c.IP()).Result()
@@ -157,7 +157,7 @@ func ShortenURL(c *fiber.Ctx) error {
 	defer r.Close()
 
 	// Check if the provided custom short URL is already in use
-	val, _ = r.Get(database.Ctx, id).Result()
+	val, _ := r.Get(database.Ctx, id).Result()
 	if val != "" {
 		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
 			"error": "URL short already in use",
