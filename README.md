@@ -136,13 +136,26 @@ Response:
 Request:
 
 ```shell
-
+curl --location 'http://localhost:3000/api/v1/update' \
+--header 'Content-Type: application/json' \
+--data '{
+    "short": "7581f8",
+    "update_short": "abc",
+    "expiry": 12
+}'
 ```
 
 Response:
 
 ```json
-
+{
+  "url": "https://drive.google.com/drive/my-drive",
+  "old_short": "localhost:3000/7581f8",
+  "updated_short": "localhost:3000/abc",
+  "expiry": 12,
+  "rate_limit": 18,
+  "rate_limit_reset": 29
+}
 ```
 
 ## License
